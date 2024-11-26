@@ -1,0 +1,70 @@
+﻿@page "/counter"
+@using Microsoft.AspNetCore.Components.Forms
+@using ServicioRNC.Shared.DTOS
+@inject HttpClient Http
+
+<h3>Subir archivo TXT</h3>
+
+<InputFile OnChange="HandleFileSelected" />
+
+@if (isLoading)
+{
+    <p>Cargando...</p>  <!-- Indicador de carga -->
+}
+
+@code {
+    private IBrowserFile selectedFile;
+    private const long MaxAllowedSize = 104857600;  // 100MB en bytes
+    private bool isLoading = false;  // Estado para el indicador de carga
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+
+        if (selectedFile != null)
+        {
+            // Comienza el proceso de carga y activa el indicador de carga
+            isLoading = true;
+
+            try
+            {
+                // Usar OpenReadStream con el tamaño máximo permitido
+                var fileStream = selectedFile.OpenReadStream(MaxAllowedSize);
+
+                var content = new MultipartFormDataContent();
+                var fileContent = new StreamContent(fileStream);
+                content.Add(fileContent, "file", selectedFile.Name);
+
+                var response = await Http.PostAsync("api/dgii/upload", content);
+
+                // Procesar la respuesta solo cuando se haya recibido
+                if (response.IsSuccessStatusCode)
+                {
+                    // Manejo de éxito
+                    var empresaDtos = await response.Content.ReadFromJsonAsync<List<Empresa_DTO>>();
+                    Console.WriteLine("Archivo cargado exitosamente.");
+                    // Aquí puedes manejar los datos o actualizar la UI
+                }
+                else
+                {
+                    Console.WriteLine($"Error al cargar el archivo. Código: {response.StatusCode}");
+                }
+            }
+            catch (IOException ex)
+            {
+                // Manejar el error si el archivo excede el tamaño permitido
+                Console.WriteLine($"Error: El archivo excede el tamaño máximo permitido. {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                // Manejar cualquier otro tipo de error
+                Console.WriteLine($"Error inesperado: {ex.Message}");
+            }
+            finally
+            {
+                // Detener el indicador de carga después de que se haya completado el proceso
+                isLoading = false;
+            }
+        }
+    }
+}
